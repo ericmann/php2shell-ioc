@@ -59,6 +59,8 @@
 #   --session-dir DIR  PHP session directory to inspect. Repeatable. Default:
 #                      PHP's session.save_path plus the usual distro locations.
 #   --redis HOST:PORT  Scan PHP sessions stored in Redis (needs redis-cli).
+#   --php PATH         A PHP / php-fpm / frankenphp binary to check. Repeatable.
+#                      Default: PATH, standard locations, and Bitnami stacks.
 #   --since YYYY-MM-DD Start of the window for "recently modified" checks.
 #                      Default 2026-10-01. Researchers had working exploits in
 #                      August 2026; set it earlier if you want a wider net.
@@ -100,17 +102,21 @@ set -u
 LC_ALL=C
 export LC_ALL
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 SINCE="2026-10-01"
 ROOTS=""
 LOGS=""
 SESSION_DIRS=""
 REDIS=""
+PHP_BINS=""
 ONLY="runtime,logs,sessions,files,system"
 MAX_SAMPLES=5
 COLOR=1
 FLAGS=0
 WARNS=0
+# What was actually inspected. A run that found no PHP, no logs and no
+# application must not end in "Clean": it looked at nothing.
+N_BINS=0; N_LOGS=0; N_ROOTS=0
 
 # Patched upstream releases (2026-10-21). Branches not listed here are EOL and
 # got no upstream fix; distro packages may still carry a backport.
@@ -142,6 +148,8 @@ Options:
   --log FILE|-        log file to scan, .gz ok, '-' = stdin (repeatable; default: auto-detect)
   --session-dir DIR   PHP session directory (repeatable; default: from php.ini + usual paths)
   --redis HOST:PORT   also scan PHP sessions stored in Redis (needs redis-cli)
+  --php PATH          a PHP, php-fpm or frankenphp binary to check (repeatable;
+                      default: PATH plus standard and Bitnami locations)
   --since YYYY-MM-DD  window start for "recently modified" checks (default 2026-10-01)
   --only LIST         sections: runtime,logs,sessions,files,system (comma-separated)
   --max-samples N     sample lines per finding (default 5)
@@ -166,6 +174,7 @@ while [ $# -gt 0 ]; do
     --log)         need_value "$1" $#; LOGS=$(add "$LOGS" "$2"); shift 2 ;;
     --session-dir) need_value "$1" $#; SESSION_DIRS=$(add "$SESSION_DIRS" "$2"); shift 2 ;;
     --redis)       need_value "$1" $#; REDIS="$2"; shift 2 ;;
+    --php)         need_value "$1" $#; PHP_BINS=$(add "$PHP_BINS" "$2"); shift 2 ;;
     --since)       need_value "$1" $#; SINCE="$2"; shift 2 ;;
     --only)        need_value "$1" $#; ONLY="$2"; shift 2 ;;
     --max-samples) need_value "$1" $#; MAX_SAMPLES="$2"; shift 2 ;;
@@ -268,13 +277,21 @@ fi
 # check the one that matters. Distros (Debian, Ubuntu, RHEL) often backport
 # security fixes without bumping the upstream version, so a "below floor"
 # result on a distro package means "check the changelog", not "vulnerable".
+# Bitnami stacks (AWS Lightsail's WordPress/LAMP blueprints, many marketplace
+# images) install everything under /opt/bitnami: PHP, Apache/nginx, logs,
+# sessions and the site itself, with Apache and PHP-FPM running as "daemon".
+# `sudo` resets PATH, so Bitnami's PHP isn't on it; we look there explicitly.
+BITNAMI=0; [ -d /opt/bitnami ] && BITNAMI=1
+
 SAVE_PATHS=""
 if want runtime; then
   section "1. PHP runtime"
   bins=""
   for b in "$(command -v php 2>/dev/null)" "$(command -v php-fpm 2>/dev/null)" "$(command -v frankenphp 2>/dev/null)" \
            /usr/local/bin/php /usr/local/sbin/php-fpm /usr/local/bin/frankenphp \
-           /usr/bin/php[0-9]* /usr/sbin/php-fpm* /usr/bin/php-fpm* /opt/remi/*/root/usr/sbin/php-fpm; do
+           /usr/bin/php[0-9]* /usr/sbin/php-fpm* /usr/bin/php-fpm* /opt/remi/*/root/usr/sbin/php-fpm \
+           /opt/bitnami/php/bin/php /opt/bitnami/php/sbin/php-fpm /opt/*/php/bin/php /opt/*/php/sbin/php-fpm \
+           /opt/lampp/bin/php $PHP_BINS; do
     [ -n "$b" ] && [ -x "$b" ] && [ -f "$b" ] || continue
     real=$(readlink -f "$b" 2>/dev/null || echo "$b")
     case "
@@ -286,7 +303,8 @@ $real
   done
 
   if [ -z "$bins" ]; then
-    info "no PHP binary found here. If PHP runs in a container, run this inside it."
+    info "no PHP binary found here (PATH and standard locations). If PHP runs in a"
+    info "container, run this inside it; if it's installed somewhere unusual, pass --php PATH."
   else
     while IFS= read -r bin; do
       case "$bin" in
@@ -295,6 +313,7 @@ $real
       esac
       ver=$(printf '%s\n' "$out" | grep -oE 'PHP [0-9]+\.[0-9]+\.[0-9]+[^ ]*' | head -n1 | cut -d' ' -f2)
       [ -n "$ver" ] || { info "$bin: could not read version"; continue; }
+      N_BINS=$((N_BINS + 1))
       br=$(printf '%s' "$ver" | cut -d. -f1,2)
       case "$br" in
         8.5) floor=$FLOOR_85 ;; 8.4) floor=$FLOOR_84 ;; 8.3) floor=$FLOOR_83 ;; 8.2) floor=$FLOOR_82 ;; *) floor="" ;;
@@ -454,7 +473,9 @@ if want logs; then
     # own output.
     for f in /var/log/php*-fpm.log* /var/log/php*fpm*/*.log* /var/log/php*/*.log* /var/log/php_errors.log* \
              /usr/local/var/log/php-fpm.log* /var/opt/remi/*/log/php-fpm/*.log* \
-             /var/log/nginx/*.log* /var/log/apache2/*.log* /var/log/httpd/*log* /var/log/caddy/*.log*; do
+             /var/log/nginx/*.log* /var/log/apache2/*.log* /var/log/httpd/*log* /var/log/caddy/*.log* \
+             /opt/bitnami/apache/logs/*log* /opt/bitnami/apache2/logs/*log* /opt/bitnami/nginx/logs/*log* \
+             /opt/bitnami/php/logs/*log* /opt/bitnami/php/var/log/*log*; do
       [ -f "$f" ] && [ -r "$f" ] && LOGS=$(add "$LOGS" "$f")
     done
   fi
@@ -462,8 +483,9 @@ if want logs; then
     info "no log files found. In containers, pipe them in: docker logs C 2>&1 | sh php2shell-ioc.sh --only logs --log -"
   else
     while IFS= read -r lf; do
-      [ "$lf" = "-" ] && { scan_log - <&3; continue; }
+      [ "$lf" = "-" ] && { N_LOGS=$((N_LOGS + 1)); scan_log - <&3; continue; }
       [ -f "$lf" ] && [ -r "$lf" ] || { info "$lf: not a readable regular file, skipped"; continue; }
+      N_LOGS=$((N_LOGS + 1))
       scan_log "$lf"
     done <<EOF
 $LOGS
@@ -490,7 +512,7 @@ if want sessions; then
   dirs=$SESSION_DIRS
   if [ -z "$dirs" ]; then
     dirs=$SAVE_PATHS
-    for d in /var/lib/php/sessions /var/lib/php/session /var/lib/php5 /tmp /var/tmp; do dirs=$(add "$dirs" "$d"); done
+    for d in /var/lib/php/sessions /var/lib/php/session /var/lib/php5 /opt/bitnami/php/var/run/session /opt/bitnami/php/tmp /tmp /var/tmp; do dirs=$(add "$dirs" "$d"); done
   fi
   seen=""
   while IFS= read -r d; do
@@ -585,7 +607,8 @@ if want files; then
   if [ -z "$ROOTS" ]; then
     # Parents come before children so an app in /var/www isn't also scanned
     # as /var/www/app, /var/www/public, ... (nested candidates are skipped).
-    for c in /var/www /var/www/html /var/www/* /app /srv/* /usr/share/nginx/html /home/*/public_html /home/forge/*/current; do
+    for c in /var/www /var/www/html /var/www/* /app /srv/* /usr/share/nginx/html /home/*/public_html /home/forge/*/current \
+             /opt/bitnami/wordpress /opt/bitnami/apps/*/htdocs /opt/bitnami/*/htdocs /bitnami/wordpress; do
       [ -d "$c" ] || continue
       # Looks like an application root, not just any folder with PHP in it.
       is_app=0
@@ -613,6 +636,7 @@ EOR
     [ -n "$root" ] || continue
     [ -d "$root" ] || { info "$root: not a directory"; continue; }
     t=$(root_type "$root")
+    N_ROOTS=$((N_ROOTS + 1))
     printf '\n  %s%s%s (%s)\n' "$BOLD" "$root" "$N" "$t"
 
     # a. PHP in data/upload locations, per framework.
@@ -742,7 +766,9 @@ fi
 #   d. Executables in world-writable temp directories.
 if want system; then
   section "5. System"
-  webusers=$(awk -F: '$1 ~ /^(www-data|apache|nginx|http|httpd|wwwrun|nobody|caddy|frankenphp)$/ || $3 == 33 || $3 == 48 || $3 == 82 {print $3 ":" $1 ":" $6}' /etc/passwd 2>/dev/null)
+  # "daemon" only counts on Bitnami stacks, where Apache and PHP-FPM run as it;
+  # elsewhere it's an ordinary system account.
+  webusers=$(awk -F: -v bn="$BITNAMI" '$1 ~ /^(www-data|apache|nginx|http|httpd|wwwrun|nobody|caddy|frankenphp)$/ || $3 == 33 || $3 == 48 || $3 == 82 || (bn == 1 && $1 == "daemon") {print $3 ":" $1 ":" $6}' /etc/passwd 2>/dev/null)
   uids=$(printf '%s\n' "$webusers" | cut -d: -f1 | tr '\n' ' ' | sed 's/ *$//')
 
   # a. Processes.
@@ -813,6 +839,11 @@ fi
 # Verdict
 # =============================================================================
 section "Verdict"
+if { want runtime || want logs || want files; } && [ $((N_BINS + N_LOGS + N_ROOTS)) -eq 0 ] && [ -z "$REDIS" ]; then
+  warn "found no PHP binary, no logs and no application to inspect: this run says nothing"
+  info "about this system. Run it where PHP runs (inside the container), or point it at"
+  info "your install with --php, --log and --root."
+fi
 if [ "$FLAGS" -gt 0 ]; then
   printf '  %s%d flag(s), %d warning(s).%s\n' "$R$BOLD" "$FLAGS" "$WARNS" "$N"
   echo "  Treat this system as suspect until each FLAG is explained. Patching does not"

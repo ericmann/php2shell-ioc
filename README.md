@@ -8,7 +8,7 @@ Indicator-of-compromise checks for **CVE-2026-109618** and **CVE-2026-109619**,<
 the October 2026 PHP remote-code-execution vulnerabilities.
 
 [![CI](https://github.com/ericmann/php2shell-ioc/actions/workflows/ci.yml/badge.svg)](https://github.com/ericmann/php2shell-ioc/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/ericmann/php2shell-ioc/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/ericmann/php2shell-ioc/releases/tag/v1.1.0)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![POSIX sh](https://img.shields.io/badge/POSIX-sh-4EAA25?logo=gnubash&logoColor=white)](docs/design.md#one-posix-sh-file)
 [![ShellCheck](https://img.shields.io/badge/ShellCheck-clean-brightgreen)](.github/workflows/ci.yml)
@@ -16,7 +16,7 @@ the October 2026 PHP remote-code-execution vulnerabilities.
 [![Network](https://img.shields.io/badge/network-none-informational)](docs/design.md#no-network)
 
 WordPress · Nextcloud · Laravel · Drupal · plain PHP<br>
-bare metal · VMs · Docker · Kubernetes · BusyBox, dash, bash
+bare metal · VMs · Lightsail/Bitnami · Docker · Kubernetes · BusyBox, dash, bash
 
 [Quick start](#quick-start) · [Demo](#see-it-work) · [What it checks](#what-it-checks) · [Indicators](docs/indicators.md) · [Running it](docs/running.md) · [Design](docs/design.md)
 
@@ -61,9 +61,9 @@ on a server, possibly as root.
 
 ```sh
 # Fetch a specific release and verify it (see "Verifying a download" below)
-curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh
+curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.1.0/php2shell-ioc.sh
 
-# On a host
+# On a host (including Lightsail and other Bitnami stacks; no Docker needed)
 sudo sh php2shell-ioc.sh
 
 # Inside a Docker container (as root inside the container, to read everything)
@@ -196,8 +196,8 @@ Each release attaches the script and its SHA-256, and the tag and commits are
 GPG-signed. Check the checksum before you run it:
 
 ```sh
-curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh
-curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh.sha256
+curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.1.0/php2shell-ioc.sh
+curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.1.0/php2shell-ioc.sh.sha256
 sha256sum -c php2shell-ioc.sh.sha256
 ```
 

@@ -28,6 +28,42 @@ somewhere unusual, name it:
 sudo sh php2shell-ioc.sh --log /var/log/php8.4-fpm-www.log --log /var/log/nginx/example.error.log
 ```
 
+## AWS Lightsail and other Bitnami stacks
+
+Lightsail's WordPress and LAMP blueprints (and many cloud marketplace images)
+are Bitnami stacks: PHP, Apache or nginx, logs, sessions and the site all live
+under `/opt/bitnami`, and Apache and PHP-FPM run as `daemon`. There's no Docker
+involved; run the script directly on the instance:
+
+```sh
+ssh bitnami@your-instance 'sudo sh -s' < php2shell-ioc.sh
+```
+
+It finds Bitnami's layout on its own, even though `sudo` drops
+`/opt/bitnami/php/bin` from `PATH`:
+
+| What | Where |
+|---|---|
+| PHP | `/opt/bitnami/php/bin/php`, `/opt/bitnami/php/sbin/php-fpm` |
+| Site | `/opt/bitnami/wordpress` (newer stacks), `/opt/bitnami/apps/*/htdocs` (older) |
+| Logs | `/opt/bitnami/apache/logs/`, `/opt/bitnami/nginx/logs/`, `/opt/bitnami/php/logs/` |
+| Sessions | `/opt/bitnami/php/var/run/session` |
+| Web user | `daemon` (only treated as a web user when `/opt/bitnami` exists) |
+
+Lightsail's plain OS blueprints with a hand-installed stack use the usual
+distro paths (`/var/log/httpd`, `/var/log/php-fpm`, `/var/lib/php/session` on
+Amazon Linux; `/var/log/apache2`, `/var/lib/php/sessions` on Ubuntu), which are
+covered too.
+
+If PHP lives somewhere else entirely, point at it:
+
+```sh
+sudo sh php2shell-ioc.sh --php /opt/myphp/bin/php --root /srv/site --log /srv/site/logs/error.log
+```
+
+If a run finds no PHP, no logs and no application at all, it says so and exits
+`1` instead of reporting "Clean". A run that inspected nothing proves nothing.
+
 ## Docker
 
 ```sh

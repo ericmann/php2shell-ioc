@@ -53,9 +53,21 @@ fake_php /usr/local/bin/php 7.4.33 0 0
 run_ioc --only runtime
 assert_contains "branch 7.4 is end-of-life" "PHP 7 is flagged as EOL"
 
-rm -f /usr/local/bin/php
+# --php points at binaries in unusual places.
+mkdir -p /opt/custom/bin
+fake_php /opt/custom/bin/php-custom 8.4.27 0 0
+run_ioc --only runtime --php /opt/custom/bin/php-custom
+assert_contains "/opt/custom/bin/php-custom -> PHP 8.4.27 (patched in 8.4.27)" "--php checks a binary outside the standard locations"
+
+rm -f /usr/local/bin/php /opt/custom/bin/php-custom
 run_ioc --only runtime
 assert_contains "no PHP binary found here" "no PHP is reported, not an error"
-assert_rc 0 "no PHP: exit 0"
+assert_contains "pass --php PATH" "suggests --php"
+
+# Nothing to inspect must never read as "Clean".
+run_ioc --only runtime,logs,files
+assert_rc 1 "nothing found to inspect: exit 1, not 0"
+assert_contains "found no PHP binary, no logs and no application to inspect" "says the run inspected nothing"
+assert_not_contains "Clean:" "never says Clean after inspecting nothing"
 
 finish

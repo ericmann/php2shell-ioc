@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 (2026-10-22)
+
+- **Bitnami stacks, including AWS Lightsail's WordPress/LAMP blueprints.** Finds
+  PHP, PHP-FPM, the site, Apache/nginx/PHP-FPM logs and sessions under
+  `/opt/bitnami`, even when `sudo` has reset `PATH`; treats `daemon` as the web
+  user on those stacks. Previously a Bitnami instance run with `sudo` was not
+  inspected at all.
+- **Never "Clean" after inspecting nothing.** If no PHP binary, log or
+  application was found, the run says so and exits 1.
+- New `--php PATH` option for PHP installed in unusual places.
+- Tests against the real Bitnami WordPress image and a RHEL-family layout.
+
 ## 1.0.0 (2026-10-22)
 
 First release.
