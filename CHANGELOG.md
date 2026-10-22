@@ -12,6 +12,9 @@
 - New `--php PATH` option for PHP installed in unusual places.
 - Tests against the real Bitnami WordPress image and a RHEL-family layout.
 
+Thanks to [@zamoose](https://x.com/zamoose) for asking about Lightsail, which
+turned this up.
+
 ## 1.0.0 (2026-10-22)
 
 First release.
