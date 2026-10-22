@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck (POSIX sh)
+        run: make lint
+
+  test:
+    name: tests (BusyBox ash, dash, bash, PHP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull test images
+        run: |
+          for i in alpine:3.20 debian:bookworm-slim php:8.4-cli redis:7.4-alpine alpine/git:v2.47.2; do
+            docker pull -q "$i"
+          done
+      - name: Run test matrix
+        run: make test
+      - name: Checksum
+        run: make checksum >> "$GITHUB_STEP_SUMMARY"
