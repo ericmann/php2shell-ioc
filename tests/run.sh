@@ -47,7 +47,7 @@ for case in $cases; do
     total=$((total + 1))
     # A case that hangs is a failure, not a stalled CI job.
     cname="php2shell-ioc-test-$$-$total"
-    out=$(timeout "${CASE_TIMEOUT:-300}" docker run --rm --name "$cname" --network none --entrypoint sh \
+    out=$(timeout "${CASE_TIMEOUT:-300}" docker run --rm --name "$cname" --network none -u 0 --entrypoint sh \
             -e IOC_SHELL="$shell" -v "$REPO:/src:ro" "$image" "/src/$case" 2>&1)
     rc=$?
     [ "$rc" -eq 124 ] && { docker kill "$cname" >/dev/null 2>&1; out="$out

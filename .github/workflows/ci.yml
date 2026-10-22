@@ -23,7 +23,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Pull test images
         run: |
-          for i in alpine:3.20 debian:bookworm-slim php:8.4-cli redis:7.4-alpine alpine/git:v2.47.2; do
+          for i in alpine:3.20 debian:bookworm-slim php:8.4-cli redis:7.4-alpine alpine/git:v2.47.2 \
+            bitnami/wordpress@sha256:7366e2de7a0db585cbff6c410d56d85531c339d5adfb1845c0019bea4343ef87; do
             docker pull -q "$i"
           done
       - name: Run test matrix
