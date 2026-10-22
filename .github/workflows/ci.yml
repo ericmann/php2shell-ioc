@@ -12,7 +12,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: shellcheck (POSIX sh)
         run: make lint
 
@@ -20,7 +20,7 @@ jobs:
     name: tests (BusyBox ash, dash, bash, PHP)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Pull test images
         run: |
           for i in alpine:3.20 debian:bookworm-slim php:8.4-cli redis:7.4-alpine alpine/git:v2.47.2; do

@@ -92,7 +92,7 @@
 #        .user.ini/.htaccess auto_prepend tricks, odd processes running as
 #        the web user, new cron entries or SSH keys.
 #
-# PROJECT: tests, docs and a demo live alongside this script in its repository.
+# PROJECT: https://github.com/ericmann/php2shell-ioc (docs, tests, demo, releases)
 # LICENSE: MIT (see LICENSE). No warranty. It's triage; use your judgment.
 # =============================================================================
 
@@ -743,7 +743,7 @@ fi
 if want system; then
   section "5. System"
   webusers=$(awk -F: '$1 ~ /^(www-data|apache|nginx|http|httpd|wwwrun|nobody|caddy|frankenphp)$/ || $3 == 33 || $3 == 48 || $3 == 82 {print $3 ":" $1 ":" $6}' /etc/passwd 2>/dev/null)
-  uids=$(printf '%s\n' "$webusers" | cut -d: -f1 | tr '\n' ' ')
+  uids=$(printf '%s\n' "$webusers" | cut -d: -f1 | tr '\n' ' ' | sed 's/ *$//')
 
   # a. Processes.
   susp=""; odd=""

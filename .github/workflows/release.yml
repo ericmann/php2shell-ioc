@@ -1,0 +1,61 @@
+name: Release
+
+# Push a signed tag vX.Y.Z to publish a release. The tag must match VERSION in
+# the script; lint and the full test matrix run again before anything is
+# published.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tag matches the script's VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver=$(sed -n 's/^VERSION="\(.*\)"$/\1/p' php2shell-ioc.sh)
+          echo "tag=$tag script=$ver"
+          [ "$tag" = "$ver" ] || { echo "::error::tag v$tag does not match VERSION=$ver"; exit 1; }
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: |
+          for i in alpine:3.20 debian:bookworm-slim php:8.4-cli redis:7.4-alpine alpine/git:v2.47.2; do
+            docker pull -q "$i"
+          done
+          make test
+
+      - name: Checksum and notes
+        run: |
+          sha256sum php2shell-ioc.sh > php2shell-ioc.sh.sha256
+          ver="${GITHUB_REF_NAME#v}"
+          # This version's CHANGELOG section, without its heading.
+          awk -v v="$ver" '/^## / { on = (index($0, "## " v " ") == 1) ; next } on' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "### Verify"
+            echo
+            echo '```sh'
+            echo "curl -fsSLO https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/php2shell-ioc.sh"
+            echo "curl -fsSLO https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/php2shell-ioc.sh.sha256"
+            echo "sha256sum -c php2shell-ioc.sh.sha256"
+            echo '```'
+            echo
+            echo "SHA-256: \`$(cut -d' ' -f1 php2shell-ioc.sh.sha256)\`"
+          } >> notes.md
+          cat notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" php2shell-ioc.sh php2shell-ioc.sh.sha256 \
+            --title "php2shell-ioc ${GITHUB_REF_NAME}" --notes-file notes.md --verify-tag

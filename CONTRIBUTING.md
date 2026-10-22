@@ -45,7 +45,11 @@ script before they run it, so the comments are part of the product.
 
 ## Releasing
 
-1. Bump `VERSION` in the script and add a `CHANGELOG.md` entry.
-2. `make check`.
-3. Tag `vX.Y.Z`, attach `php2shell-ioc.sh`, and put `make checksum` output in
-   the release notes.
+1. Bump `VERSION` in the script, add a `## X.Y.Z (date)` entry to `CHANGELOG.md`,
+   and update the release badge and download URLs in the README.
+2. `make check`, push, and wait for CI to go green.
+3. Push a signed tag: `git tag -s vX.Y.Z -m "php2shell-ioc X.Y.Z" && git push origin vX.Y.Z`.
+
+The release workflow then checks that the tag matches `VERSION`, re-runs lint
+and tests, and publishes a GitHub release with `php2shell-ioc.sh`, its
+`.sha256`, and that version's CHANGELOG entry plus the checksum as notes.

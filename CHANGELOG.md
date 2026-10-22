@@ -10,4 +10,7 @@ First release.
 - Logs from files, `.gz`, or stdin; combined and JSON access-log formats.
 - File-based and Redis PHP session checks.
 - Read-only, no network, never runs application code, never prints secrets.
-- Test suite across BusyBox ash, dash, bash, real PHP, Redis and Git.
+- Test suite across BusyBox ash, dash, bash, real PHP, Redis and Git, including
+  tests of the safety properties themselves.
+- Disposable-container demo (`make demo`) and an asciinema recording of it.
+- Releases publish the script with a SHA-256 checksum.

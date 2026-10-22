@@ -1,16 +1,38 @@
+<div align="center">
+
 # php2shell-ioc
 
-A read-only triage script that looks for indicators that the October 2026 PHP
-"PHP2Shell" vulnerabilities (**CVE-2026-109618** and **CVE-2026-109619**) were
-exploited, or probed, on your systems.
+**Were you hit by PHP2Shell? A read-only triage script that finds out.**
 
-It works with **WordPress, Nextcloud, Laravel, Drupal and plain PHP**, on bare
-metal, VMs and inside containers. It's a single POSIX `sh` file, so it runs
-under BusyBox ash (Alpine), dash (Debian) and bash, and you can pipe it into a
-running container or Kubernetes pod without copying anything into it.
+Indicator-of-compromise checks for **CVE-2026-109618** and **CVE-2026-109619**,<br>
+the October 2026 PHP remote-code-execution vulnerabilities.
+
+[![CI](https://github.com/ericmann/php2shell-ioc/actions/workflows/ci.yml/badge.svg)](https://github.com/ericmann/php2shell-ioc/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/ericmann/php2shell-ioc/releases/tag/v1.0.0)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![POSIX sh](https://img.shields.io/badge/POSIX-sh-4EAA25?logo=gnubash&logoColor=white)](docs/design.md#one-posix-sh-file)
+[![ShellCheck](https://img.shields.io/badge/ShellCheck-clean-brightgreen)](.github/workflows/ci.yml)
+[![Read-only](https://img.shields.io/badge/writes-zero%20files-informational)](docs/design.md#read-only-provably)
+[![Network](https://img.shields.io/badge/network-none-informational)](docs/design.md#no-network)
+
+WordPress · Nextcloud · Laravel · Drupal · plain PHP<br>
+bare metal · VMs · Docker · Kubernetes · BusyBox, dash, bash
+
+[Quick start](#quick-start) · [Demo](#see-it-work) · [What it checks](#what-it-checks) · [Indicators](docs/indicators.md) · [Running it](docs/running.md) · [Design](docs/design.md)
+
+<p align="center">
+  <img src="docs/demo.gif" alt="php2shell-ioc demo: a clean scan, then the same site with indicators planted, flagged" width="860">
+</p>
+
+</div>
+
+---
+
+One POSIX `sh` file. Stream it into a running container or pod; nothing gets
+copied or installed:
 
 ```console
-$ docker exec -i my-wordpress sh -s < php2shell-ioc.sh
+$ docker exec -i -u 0 my-wordpress sh -s < php2shell-ioc.sh
 ```
 
 > **Patch first.** If you are not yet on PHP 8.5.12, 8.4.27, 8.3.36 or 8.2.35
@@ -39,7 +61,7 @@ on a server, possibly as root.
 
 ```sh
 # Fetch a specific release and verify it (see "Verifying a download" below)
-curl -fsSLO https://github.com/OWNER/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh
+curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh
 
 # On a host
 sudo sh php2shell-ioc.sh
@@ -66,10 +88,36 @@ edge analytics when container logs are gone, are in [docs/running.md](docs/runni
 make demo        # or: sh demo/run.sh
 ```
 
+(The animation at the top is this demo. To replay the recording in your
+terminal: `asciinema play docs/demo.cast`. To re-record it: `make cast`.)
+
 This starts a throwaway Alpine container with no network, scans a clean
 WordPress-shaped site, then plants harmless stand-ins for each indicator
 ([demo/plant.sh](demo/plant.sh)) and scans again. Nothing on your machine is
 touched, and nothing in the demo exploits anything.
+
+An excerpt of the planted scan:
+
+```text
+== 2. Logs ==
+  [FLAG] /var/log/nginx/error.log: 1 out-of-memory fatal(s) 'in Unknown on line 0' (died while parsing the request)
+         [20-Oct-2026 21:14:01] PHP Fatal error:  Allowed memory size of 134217728 bytes exhausted (tried to allocate 20480 bytes) in Unknown on line 0
+  [FLAG] /var/log/nginx/error.log: 1 worker crash / heap-corruption line(s)
+         [20-Oct-2026 21:14:02] WARNING: [pool www] child 41 exited on signal 11 (SIGSEGV) after 12.3 seconds from start
+
+== 3. Sessions ==
+  [FLAG] /var/lib/php/sessions: 1 of 2 session file(s) contain upload_progress_ data
+
+== 4. Files ==
+  /var/www/html (wordpress)
+  [FLAG] executable PHP in a data/upload location (/var/www/html/wp-content/uploads):
+         /var/www/html/wp-content/uploads/2026/10/thumb.php
+  [FLAG] auto_prepend/append_file set in a per-directory config (classic persistence):
+         /var/www/html/.user.ini:1:auto_prepend_file=/tmp/.demo.php
+
+== Verdict ==
+  6 flag(s), 8 warning(s).
+```
 
 ## What it checks
 
@@ -144,13 +192,16 @@ This is triage, not forensics:
 
 ## Verifying a download
 
-Each release publishes the script's SHA-256. Check it before you run it:
+Each release attaches the script and its SHA-256, and the tag and commits are
+GPG-signed. Check the checksum before you run it:
 
 ```sh
-sha256sum php2shell-ioc.sh
+curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh
+curl -fsSLO https://github.com/ericmann/php2shell-ioc/releases/download/v1.0.0/php2shell-ioc.sh.sha256
+sha256sum -c php2shell-ioc.sh.sha256
 ```
 
-Then compare against the release notes. Pin to a release tag, not to `main`.
+Pin to a release, not to `main`.
 
 ## Development
 
@@ -158,7 +209,13 @@ Then compare against the release notes. Pin to a release tag, not to `main`.
 make lint    # shellcheck, POSIX sh
 make test    # test matrix in Docker: BusyBox ash, dash, bash, real PHP, Redis, git
 make check   # both (what CI runs)
+make demo    # the demo
+make cast    # re-record docs/demo.cast and render docs/demo.gif (needs agg)
 ```
+
+Releases are cut by pushing a signed `vX.Y.Z` tag; the release workflow checks
+the tag against `VERSION`, re-runs everything, and publishes the script with its
+checksum. See [CONTRIBUTING.md](CONTRIBUTING.md#releasing).
 
 The tests plant indicators in disposable containers and assert on the output.
 They also prove the safety properties: the read-only checksum, `--network none`,
